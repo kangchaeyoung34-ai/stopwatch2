@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>크리스마스 스탑워치</title>
+<style>
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; overflow:hidden; }
+  body { font-family:"Segoe UI","Malgun Gothic",sans-serif; color:#fff; background:#050818; }
+
+  /* ---------- 하늘 (10초마다 한 단계씩 밝아짐) ---------- */
+  .sky { position:fixed; inset:0; opacity:0; transition:opacity 3s ease; }
+  .sky.on { opacity:1; }
+  .s0 { background:linear-gradient(#050818,#0d1b3e); opacity:1; }
+  .s1 { background:linear-gradient(#0b1636,#1a2f63); }
+  .s2 { background:linear-gradient(#162a5e,#3a4f94); }
+  .s3 { background:linear-gradient(#2d3a7a,#7a5a9e); }
+  .s4 { background:linear-gradient(#4a5fa8,#e08fa0); }
+  .s5 { background:linear-gradient(#6f9ad6,#ffc99a); }
+  .s6 { background:linear-gradient(#8ec9f0,#e6f4ff); }
+
+  #stars { position:fixed; inset:0; transition:opacity 3s ease; }
+  .moon { position:fixed; top:9vh; right:10vw; width:70px; height:70px; border-radius:50%;
+          background:radial-gradient(circle at 35% 35%,#fffbe6,#f3e7a8 60%,#d9c978);
+          box-shadow:0 0 40px 12px rgba(255,248,200,.35); transition:opacity 3s ease, transform 3s ease; }
+  .moon::after { content:""; position:absolute; left:40px; top:16px; width:14px; height:14px; border-radius:50%;
+                 background:rgba(0,0,0,.08); box-shadow:-22px 22px 0 -2px rgba(0,0,0,.07); }
+  .sun { position:fixed; left:50%; bottom:18vh; width:220px; height:220px; margin-left:-110px; border-radius:50%;
+         background:radial-gradient(circle,rgba(255,240,190,.9),rgba(255,220,150,0) 70%);
+         opacity:0; transform:translateY(80px); transition:opacity 4s ease, transform 4s ease; }
+
+  canvas#snow { position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:5; }
+
+  /* ---------- 썰매 ---------- */
+  .fly { position:fixed; top:6vh; left:0; width:clamp(300px,36vw,460px); z-index:3; will-change:transform;
+         animation:flight 14s linear infinite; animation-play-state:paused; }
+  .fly.go { animation-play-state:running; }
+  .bob { animation:bob 2.2s ease-in-out infinite; animation-play-state:inherit; transform-origin:50% 50%; }
+  .fly svg { width:100%; height:auto; overflow:visible; filter:drop-shadow(0 6px 10px rgba(0,0,0,.25)); }
+  @keyframes flight {
+    0%   { transform:translate(-115%, 30px); }
+    50%  { transform:translate(calc(50vw - 50%), -10px); }
+    100% { transform:translate(100vw, 30px); }
+  }
+  @keyframes bob { 0%,100%{ transform:translateY(0) rotate(-2deg);} 50%{ transform:translateY(-12px) rotate(2deg);} }
+  .leg { transform-box:fill-box; transform-origin:50% 0; animation:gallop .5s ease-in-out infinite alternate; animation-play-state:inherit; }
+  .leg.b { animation-direction:alternate-reverse; }
+  @keyframes gallop { from{ transform:rotate(-28deg);} to{ transform:rotate(28deg);} }
+  .nose { animation:blink 1s ease-in-out infinite alternate; animation-play-state:inherit; }
+  @keyframes blink { from{ opacity:.55;} to{ opacity:1;} }
+  .trail { animation:twinkle .8s ease-in-out infinite alternate; animation-play-state:inherit; }
+  @keyframes twinkle { from{ opacity:.2;} to{ opacity:1;} }
+
+  /* 떨어지는 선물 */
+  .gift { position:fixed; z-index:4; font-size:30px; pointer-events:none; animation:drop 1.6s cubic-bezier(.5,0,.9,.6) forwards; }
+  @keyframes drop {
+    0%   { transform:translateY(0) rotate(0); opacity:1; }
+    85%  { opacity:1; }
+    100% { transform:translateY(var(--fall)) rotate(200deg); opacity:0; }
+  }
+
+  /* ---------- 도시 (시차 스크롤) ---------- */
+  .ground { position:fixed; left:0; bottom:0; width:100%; height:44vh; z-index:2; overflow:hidden;
+            transition:filter 3s ease; filter:brightness(.62) saturate(.9); }
+  .layer { position:absolute; left:0; bottom:0; height:100%; width:max-content; display:flex;
+           animation:scroll var(--d) linear infinite; animation-play-state:paused; will-change:transform; }
+  .ground.go .layer { animation-play-state:running; }
+  .layer svg { height:100%; width:auto; aspect-ratio:4/1; flex:none; display:block; }
+  @keyframes scroll { to { transform:translateX(-33.3333%); } }
+  .l0,.l1,.l2 { animation:tw 1s ease-in-out infinite alternate; }
+  .l0 { fill:#ff5a5a; } .l1 { fill:#ffd84a; animation-delay:.35s; } .l2 { fill:#5ab4ff; animation-delay:.7s; }
+  .blink { fill:#ff4040; animation:tw .9s ease-in-out infinite alternate; }
+  @keyframes tw { from{ opacity:.3;} to{ opacity:1;} }
+
+  /* ---------- 스탑워치 카드 ---------- */
+  .wrap { position:fixed; inset:0; z-index:6; display:flex; align-items:center; justify-content:center; padding:16px; pointer-events:none; }
+  .card { pointer-events:auto; width:100%; max-width:440px; padding:20px 22px 18px; border-radius:28px; margin-top:8vh;
+          background:linear-gradient(160deg,rgba(18,30,66,.78),rgba(8,16,42,.7));
+          border:1px solid rgba(255,255,255,.3);
+          backdrop-filter:blur(14px) saturate(1.2); -webkit-backdrop-filter:blur(14px) saturate(1.2);
+          box-shadow:0 18px 50px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.25); }
+  .head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .title { font-size:14px; font-weight:700; letter-spacing:2.5px; color:#ffe3e3; }
+  .gifts { font-size:15px; font-weight:700; padding:4px 11px; border-radius:99px; background:rgba(255,255,255,.14);
+           border:1px solid rgba(255,255,255,.25); font-variant-numeric:tabular-nums; }
+  .gifts.pop { animation:pop .45s ease; }
+  @keyframes pop { 40%{ transform:scale(1.25); background:rgba(255,211,107,.4);} }
+
+  .time { margin:10px 0 4px; font-size:clamp(54px,17vw,80px); font-weight:800; line-height:1.05; text-align:center;
+          font-variant-numeric:tabular-nums; letter-spacing:1px; text-shadow:0 2px 0 rgba(0,0,0,.25), 0 0 26px rgba(255,255,255,.35); }
+  .time small { font-size:.5em; color:#ffd2d2; font-weight:700; }
+
+  .sky-meter { margin:8px 0 18px; }
+  .segs { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .segs i { height:7px; border-radius:4px; background:rgba(255,255,255,.2); overflow:hidden; display:block; }
+  .segs b { display:block; height:100%; width:0; background:linear-gradient(90deg,#ffd36b,#fff1b8); border-radius:4px; }
+  .sky-label { display:flex; justify-content:space-between; margin-top:8px; font-size:14px; color:#fff; font-weight:600; }
+  .sky-label span:last-child { color:rgba(255,255,255,.8); font-weight:500; font-variant-numeric:tabular-nums; }
+
+  .btns { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  button { padding:14px 0; min-height:52px; font-size:17px; font-weight:700; border:0; border-radius:16px; cursor:pointer;
+           color:#fff; font-family:inherit; transition:transform .1s, filter .15s; }
+  button:hover:not(:disabled) { filter:brightness(1.1); }
+  button:active:not(:disabled) { transform:translateY(2px) scale(.99); }
+  button:focus-visible { outline:3px solid #ffd36b; outline-offset:3px; }
+  button.primary { grid-column:1 / -1; min-height:60px; font-size:21px; letter-spacing:1px;
+                   background:linear-gradient(#34ab62,#1f7a43); box-shadow:0 4px 0 #14582f, 0 8px 20px rgba(31,122,67,.4); }
+  button.primary.stop { background:linear-gradient(#e8494a,#b52624); box-shadow:0 4px 0 #801a18, 0 8px 20px rgba(181,38,36,.4); }
+  button.secondary { background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.35); }
+  button:disabled { opacity:.38; cursor:not-allowed; }
+
+  ul { list-style:none; margin:14px 0 0; padding:0; max-height:150px; overflow-y:auto; scrollbar-width:thin; }
+  li { display:grid; grid-template-columns:auto 1fr auto; align-items:center; gap:10px; padding:9px 2px;
+       border-top:1px solid rgba(255,255,255,.18); font-variant-numeric:tabular-nums; }
+  li .n { min-width:30px; text-align:center; font-size:12px; font-weight:700; padding:3px 0; border-radius:8px; background:rgba(255,255,255,.16); }
+  li .split { font-size:17px; font-weight:700; }
+  li .total { font-size:14px; color:rgba(255,255,255,.75); }
+  li .tag { font-size:11px; font-weight:700; padding:2px 7px; border-radius:99px; margin-left:8px; vertical-align:2px; }
+  li.best .tag { background:#2fa56a; } li.worst .tag { background:#d8403f; }
+  .empty { text-align:center; margin:14px 0 0; font-size:14px; color:rgba(255,255,255,.8); }
+  .hint { text-align:center; color:rgba(255,255,255,.8); font-size:13px; margin-top:12px; }
+  kbd { font-family:inherit; font-size:12px; font-weight:700; padding:2px 7px; border-radius:6px; background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.3); }
+  @media (hover:none) { .hint { display:none; } }
+
+  /* 선물 착지 반짝임 */
+  .burst { position:fixed; z-index:4; font-size:30px; pointer-events:none; animation:burst .9s ease-out forwards; }
+  @keyframes burst { from{ transform:scale(.4); opacity:1;} to{ transform:scale(2.2); opacity:0;} }
+
+  @media (max-height:640px) { .card { margin-top:2vh; } ul { max-height:80px; } }
+  @media (prefers-reduced-motion: reduce) { .fly, .bob, .leg, .win { animation:none !important; } }
+</style>
+</head>
+<body>
+
+<div class="sky s0 on"></div><div class="sky s1"></div><div class="sky s2"></div><div class="sky s3"></div>
+<div class="sky s4"></div><div class="sky s5"></div><div class="sky s6"></div>
+<canvas id="stars"></canvas>
+<div class="moon" id="moon"></div>
+<div class="sun" id="sun"></div>
+
+<!-- 산타 썰매 -->
+<div class="fly" id="fly">
+  <div class="bob">
+  <svg viewBox="0 0 360 130" xmlns="http://www.w3.org/2000/svg">
+    <!-- 반짝이는 꼬리 -->
+    <g class="trail" fill="#fff6b0">
+      <circle cx="-20" cy="75" r="3"/><circle cx="-45" cy="62" r="2"/><circle cx="-60" cy="85" r="3"/><circle cx="-85" cy="70" r="2"/>
+    </g>
+    <!-- 고삐 -->
+    <path d="M118 62 Q190 50 232 56 M118 68 Q200 70 296 62" stroke="#c9a227" stroke-width="2" fill="none"/>
+    <!-- 선물 자루 -->
+    <path d="M22 62 Q8 30 40 30 Q62 32 60 62 Z" fill="#a9703a"/>
+    <path d="M30 34 Q40 26 52 34" stroke="#d8a566" stroke-width="3" fill="none"/>
+    <rect x="20" y="42" width="14" height="12" fill="#e2403f" transform="rotate(-12 27 48)"/>
+    <!-- 썰매 몸체 -->
+    <path d="M14 66 L130 66 Q136 66 132 56 L126 40 Q122 36 118 42 L112 56 L40 56 Q18 56 14 66 Z" fill="#d52b2b"/>
+    <path d="M14 66 L130 66 L128 72 L18 72 Z" fill="#a31d1d"/>
+    <path d="M10 62 Q4 72 14 78 L126 78" stroke="#ffd34d" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+    <path d="M14 78 L14 70 M70 78 L70 72 M120 78 L120 72" stroke="#ffd34d" stroke-width="3"/>
+    <path d="M16 50 Q30 40 52 52" stroke="#ffd34d" stroke-width="3" fill="none"/>
+    <!-- 산타 -->
+    <rect x="68" y="30" width="34" height="30" rx="12" fill="#e2403f"/>
+    <rect x="68" y="46" width="34" height="5" fill="#2b2b2b"/>
+    <rect x="82" y="45" width="7" height="7" fill="#ffd34d"/>
+    <circle cx="85" cy="24" r="12" fill="#ffd9b8"/>
+    <path d="M73 27 Q85 46 97 27 Q85 33 73 27 Z" fill="#fff"/>
+    <circle cx="85" cy="23" r="1.6" fill="#333" transform="translate(-4 0)"/><circle cx="85" cy="23" r="1.6" fill="#333" transform="translate(5 0)"/>
+    <circle cx="85" cy="27" r="2.4" fill="#f0a08a"/>
+    <path d="M72 20 Q84 -8 100 12 L99 18 Q85 12 72 20 Z" fill="#e2403f"/>
+    <rect x="71" y="16" width="29" height="7" rx="3.5" fill="#fff"/>
+    <circle cx="101" cy="8" r="4.5" fill="#fff"/>
+    <path d="M100 38 L116 28" stroke="#e2403f" stroke-width="7" stroke-linecap="round"/><circle cx="117" cy="27" r="4" fill="#fff"/>
+    <!-- 루돌프 & 순록 두 마리 -->
+    <g id="deer1" transform="translate(150 0)">
+      <rect x="6" y="58" width="42" height="18" rx="9" fill="#8a5a33"/>
+      <g class="leg"><rect x="12" y="70" width="6" height="26" rx="3" fill="#6d4524"/></g>
+      <g class="leg b"><rect x="40" y="70" width="6" height="26" rx="3" fill="#6d4524"/></g>
+      <path d="M44 62 L56 48" stroke="#8a5a33" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="62" cy="44" r="8" fill="#9b6a3f"/>
+      <path d="M60 38 L56 26 M56 26 L50 22 M56 26 L58 18 M64 37 L68 25 M68 25 L74 22 M68 25 L66 17" stroke="#6d4524" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="64" cy="42" r="1.5" fill="#222"/>
+      <circle class="nose" cx="70" cy="46" r="3.2" fill="#ff3030"/>
+    </g>
+    <g id="deer2" transform="translate(222 -2)">
+      <rect x="6" y="58" width="42" height="18" rx="9" fill="#9b6a3f"/>
+      <g class="leg b"><rect x="12" y="70" width="6" height="26" rx="3" fill="#6d4524"/></g>
+      <g class="leg"><rect x="40" y="70" width="6" height="26" rx="3" fill="#6d4524"/></g>
+      <path d="M44 62 L56 48" stroke="#9b6a3f" stroke-width="9" stroke-linecap="round"/>
+      <circle cx="62" cy="44" r="8" fill="#a97849"/>
+      <path d="M60 38 L56 26 M56 26 L50 22 M56 26 L58 18 M64 37 L68 25 M68 25 L74 22 M68 25 L66 17" stroke="#6d4524" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <circle cx="64" cy="42" r="1.5" fill="#222"/>
+      <circle cx="70" cy="46" r="3" fill="#2b1b10"/>
+    </g>
+  </svg>
+  </div>
+</div>
+
+<div class="ground" id="ground"></div>
+
+<canvas id="snow"></canvas>
+
+<div class="wrap">
+  <main class="card">
+    <div class="head">
+      <div class="title">❄ MERRY CHRISTMAS ❄</div>
+      <div class="gifts" id="giftCount" title="떨어뜨린 선물">🎁 0</div>
+    </div>
+    <div class="time" id="display" role="timer" aria-label="경과 시간">00:00<small>.00</small></div>
+
+    <div class="sky-meter">
+      <div class="segs" id="segs" aria-hidden="true"><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i><i><b></b></i></div>
+      <div class="sky-label"><span id="skyName">🌙 깊은 밤</span><span id="skyNext">다음 하늘까지 10초</span></div>
+    </div>
+
+    <div class="btns">
+      <button id="toggle" class="primary">▶ 시작</button>
+      <button id="lap" class="secondary" disabled>🎁 랩 · 선물</button>
+      <button id="reset" class="secondary" disabled>↺ 리셋</button>
+    </div>
+    <ul id="laps"></ul>
+    <p class="empty" id="empty">시작하고 랩을 누르면 산타가 선물을 떨어뜨려요 🎅</p>
+    <div class="hint"><kbd>Space</kbd> 시작/정지 · <kbd>L</kbd> 랩 · <kbd>R</kbd> 리셋</div>
+  </main>
+</div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const display=$('display'), toggle=$('toggle'), lapBtn=$('lap'), resetBtn=$('reset'), lapList=$('laps'), fly=$('fly');
+  let elapsed=0, startAt=0, raf=null, running=false, lastLap=0, laps=[];
+
+  /* ----- 하늘 단계: 10초마다 한 단계 밝아짐 ----- */
+  const skies = [...document.querySelectorAll('.sky')];
+  const starOp = [1,1,.85,.6,.3,.1,0];
+  const moonOp = [1,1,1,.8,.5,.2,0];
+  const groundBr = [.62,.7,.8,.9,.96,1,1];
+  let stage = -1;
+  function setStage(n) {
+    if (n === stage) return;
+    stage = n;
+    skies.forEach((el,i)=> el.classList.toggle('on', i===n || i===0 && n===0));
+    $('stars').style.opacity = starOp[n];
+    $('moon').style.opacity = moonOp[n];
+    $('moon').style.transform = `translateY(${n*14}px)`;
+    $('sun').style.opacity = n>=4 ? (n===4?.4:n===5?.8:1) : 0;
+    $('sun').style.transform = n>=4 ? 'translateY(0)' : 'translateY(80px)';
+    $('ground').style.filter = `brightness(${groundBr[n]}) saturate(${.9+n*.02})`;
+  }
+
+  /* ----- 시간 표시 ----- */
+  function fmt(ms){
+    const cs=Math.floor(ms/10)%100, s=Math.floor(ms/1000)%60, m=Math.floor(ms/60000)%60, h=Math.floor(ms/3600000);
+    const p=n=>String(n).padStart(2,'0');
+    return (h?p(h)+':':'')+p(m)+':'+p(s)+'<small>.'+p(cs)+'</small>';
+  }
+  const fmtText = ms => fmt(ms).replace(/<[^>]+>/g,'');
+
+  function tick(){
+    elapsed = performance.now()-startAt;
+    display.innerHTML = fmt(elapsed);
+    setStage(Math.min(6, Math.floor(elapsed/10000)));
+    updateMeter();
+    raf = requestAnimationFrame(tick);
+  }
+  function start(){
+    startAt = performance.now()-elapsed; running=true;
+    raf = requestAnimationFrame(tick);
+    fly.classList.add('go'); $('ground').classList.add('go');
+    toggle.textContent='■ 정지'; toggle.classList.add('stop');
+    lapBtn.disabled=false; resetBtn.disabled=false;
+  }
+  function stop(){
+    cancelAnimationFrame(raf); running=false;
+    fly.classList.remove('go'); $('ground').classList.remove('go');
+    toggle.textContent='▶ 계속'; toggle.classList.remove('stop');
+    lapBtn.disabled=true;
+  }
+  function lap(){
+    if(!running) return;
+    const split=elapsed-lastLap; lastLap=elapsed;
+    laps.unshift({n:laps.length+1, split, total:elapsed});
+    render(); dropGift();
+  }
+  function reset(){
+    cancelAnimationFrame(raf); running=false; elapsed=0; lastLap=0; laps=[];
+    display.innerHTML=fmt(0);
+    fly.classList.remove('go'); $('ground').classList.remove('go');
+    toggle.textContent='▶ 시작'; toggle.classList.remove('stop');
+    lapBtn.disabled=true; resetBtn.disabled=true;
+    setStage(0); gifts=0; updGift(); updateMeter(); render();
+  }
+
+  /* ----- 하늘 단계 표시 ----- */
+  const skyNames = ['🌙 깊은 밤','🌌 한밤','🌠 새벽 전','🌆 여명','🌅 노을','☀️ 아침','🌤️ 한낮'];
+  const segFill = [...document.querySelectorAll('#segs b')];
+  let lastMeter = '';
+  function updateMeter(){
+    const st = Math.min(6, Math.floor(elapsed/10000));
+    const frac = st>=6 ? 1 : (elapsed%10000)/10000;
+    segFill.forEach((b,i)=>{ b.style.width = (i<st ? 100 : i===st ? frac*100 : 0) + '%'; });
+    const nm = skyNames[st];
+    const nx = st>=6 ? '하늘이 활짝 개었어요!' : '다음 하늘까지 ' + Math.ceil((10000 - elapsed%10000)/1000) + '초';
+    const key = nm + nx;
+    if (key !== lastMeter) { lastMeter = key; $('skyName').textContent = nm; $('skyNext').textContent = nx; }
+  }
+
+  /* ----- 랩 목록 (최고/최저 표시) ----- */
+  function render(){
+    $('empty').style.display = laps.length ? 'none' : '';
+    const sp = laps.map(l=>l.split), best = Math.min(...sp), worst = Math.max(...sp);
+    lapList.innerHTML = laps.map(l=>{
+      const cls = laps.length>=3 && l.split===best ? 'best' : laps.length>=3 && l.split===worst ? 'worst' : '';
+      const tag = cls==='best' ? '<span class="tag">최고</span>' : cls==='worst' ? '<span class="tag">최저</span>' : '';
+      return `<li class="${cls}"><span class="n">#${l.n}</span><span class="split">+${fmtText(l.split)}${tag}</span><span class="total">${fmtText(l.total)}</span></li>`;
+    }).join('');
+  }
+
+  /* ----- 선물 투하 + 착지 ----- */
+  let gifts = 0;
+  function updGift(){
+    const g = $('giftCount'); g.textContent = '🎁 ' + gifts;
+    g.classList.remove('pop'); void g.offsetWidth; if (gifts) g.classList.add('pop');
+  }
+  function dropGift(){
+    const r = fly.getBoundingClientRect();
+    const x = Math.max(8, Math.min(innerWidth-40, r.left + r.width*0.2)), y0 = r.top + r.height*0.6, y1 = innerHeight*0.86;
+    const g = document.createElement('div');
+    g.className='gift'; g.textContent = ['🎁','🎁','🎀'][Math.floor(Math.random()*3)];
+    g.style.left = x+'px'; g.style.top = y0+'px'; g.style.setProperty('--fall', (y1-y0)+'px');
+    document.body.appendChild(g);
+    gifts++; updGift();
+    setTimeout(()=>{
+      g.remove();
+      const b = document.createElement('div'); b.className='burst'; b.textContent='✨';
+      b.style.left = x+'px'; b.style.top = y1+'px'; document.body.appendChild(b);
+      setTimeout(()=>b.remove(), 900);
+    }, 1550);
+  }
+
+  toggle.onclick = () => running ? stop() : start();
+  lapBtn.onclick = lap; resetBtn.onclick = reset;
+  document.addEventListener('keydown', e=>{
+    if(e.code==='Space'){ e.preventDefault(); toggle.click(); }
+    else if(e.key.toLowerCase()==='l' && !lapBtn.disabled) lap();
+    else if(e.key.toLowerCase()==='r' && !resetBtn.disabled) reset();
+  });
+
+  /* ----- 도시 배경 생성 (시차 스크롤 4겹) ----- */
+  const W = 1200, H = 300;
+  function rng(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+  function buildings(seed, o){
+    const r = rng(seed), R=(a,b)=>a+r()*(b-a), P=a=>a[Math.floor(r()*a.length)];
+    let x = 0, s = '';
+    while (x < W) {
+      let w = Math.round(R(o.w[0], o.w[1]));
+      if (W - x - w < o.w[0]) w = W - x;
+      const h = Math.round(R(o.h[0], o.h[1])), y = H - h, c = P(o.colors), mx = x + w/2;
+      const v = r();
+      // 지붕 디테일
+      if (o.detail) {
+        if (v < .18) s += `<path d="M${mx} ${y} V${y-24}" stroke="${c}" stroke-width="2"/><circle class="blink" cx="${mx}" cy="${y-24}" r="2.2"/>`;
+        else if (v < .32) s += `<path d="M${mx-11} ${y} L${mx} ${y-38} L${mx+11} ${y} Z" fill="${c}"/><path d="M${mx-11} ${y} L${mx} ${y-38} L${mx+11} ${y} Z" fill="rgba(255,255,255,.55)" transform="translate(0 -1) scale(1)" opacity=".0"/>`;
+        else if (v < .5 && w > 50) s += `<rect x="${x+8}" y="${y-14}" width="10" height="14" fill="${c}"/><rect x="${x+7}" y="${y-17}" width="12" height="4" fill="#f3f8ff"/>`;
+        else if (v < .62) s += `<path d="M${x+4} ${y} L${x+12} ${y-14} H${x+w-12} L${x+w-4} ${y} Z" fill="${c}"/><path d="M${x+12} ${y-14} H${x+w-12}" stroke="#f3f8ff" stroke-width="4"/>`;
+      }
+      s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${c}"/>`;
+      s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#sh)" opacity=".28"/>`;
+      s += `<rect x="${x-1}" y="${y-3}" width="${w+2}" height="5" rx="2.5" fill="#f3f8ff"/>`;
+      // 창문
+      if (w >= 30) {
+        const cw=o.win[0], ch=o.win[1], gx=cw+o.gap[0], gy=ch+o.gap[1];
+        const cols = Math.floor((w-10)/gx), rows = Math.floor((h-18-(o.pad||0))/gy);
+        const ox = x + (w - cols*gx + o.gap[0]) / 2;
+        for (let rr=0; rr<rows; rr++) for (let cc=0; cc<cols; cc++) {
+          const lit = r() < o.lit;
+          s += `<rect x="${(ox+cc*gx).toFixed(1)}" y="${y+12+rr*gy}" width="${cw}" height="${ch}" fill="${lit ? P(['#ffd36b','#ffcf5a','#ffe39a']) : o.dim}"/>`;
+        }
+      }
+      // 가게 쇼윈도 + 차양
+      if (o.shop && w >= 50) {
+        s += `<rect x="${x+6}" y="${H-40}" width="${w-12}" height="28" fill="${P(['#ffe2a0','#ffd78a','#ffeab8'])}"/>`;
+        s += `<rect x="${x+6+(w-12)/2-1}" y="${H-40}" width="2" height="28" fill="${c}"/>`;
+        const n = Math.max(4, Math.floor((w-6)/9));
+        for (let k=0; k<n; k++) s += `<rect x="${(x+3+k*(w-6)/n).toFixed(1)}" y="${H-48}" width="${((w-6)/n+.3).toFixed(1)}" height="9" fill="${k%2 ? '#fff' : '#d8322f'}"/>`;
+      }
+      // 크리스마스 전구
+      if (o.lights) {
+        for (let lx = x+7, i=0; lx < x+w-4; lx += 11, i++)
+          s += `<circle class="l${i%3}" cx="${lx}" cy="${y+5+Math.round(Math.sin(i*1.4)*1.5)}" r="2.4"/>`;
+      }
+      x += w;
+    }
+    return s;
+  }
+
+  function foreground(seed){
+    const r = rng(seed), P=a=>a[Math.floor(r()*a.length)];
+    let s = '';
+    const base = 272;
+    for (let x = 70; x < W-60; x += 150 + Math.round(r()*50)) {
+      const k = P(['tree','tree','lamp','gifts','snowman','lamp']);
+      if (k === 'tree') {
+        const sc = .8 + r()*.45;
+        s += `<g transform="translate(${x} ${base}) scale(${sc})">
+          <rect x="-5" y="-12" width="10" height="14" fill="#6d4524"/>
+          <path d="M-34 -10 L0 -62 L34 -10 Z" fill="#1c7447"/><path d="M-28 -48 L0 -94 L28 -48 Z" fill="#23895a"/><path d="M-20 -80 L0 -118 L20 -80 Z" fill="#2c9f69"/>
+          <polygon points="0,-134 4,-124 15,-124 6,-118 10,-108 0,-114 -10,-108 -6,-118 -15,-124 -4,-124" fill="#ffd34d"/>
+          <circle class="l0" cx="-12" cy="-26" r="3.2"/><circle class="l1" cx="14" cy="-34" r="3.2"/><circle class="l2" cx="-4" cy="-62" r="3"/>
+          <circle class="l0" cx="9" cy="-70" r="3"/><circle class="l1" cx="-9" cy="-92" r="2.8"/><circle class="l2" cx="4" cy="-100" r="2.6"/>
+          <circle class="l2" cx="20" cy="-18" r="3.2"/><circle class="l0" cx="-24" cy="-16" r="3.2"/>
+        </g>`;
+      } else if (k === 'lamp') {
+        s += `<g transform="translate(${x} ${base})">
+          <circle cx="0" cy="-104" r="30" fill="rgba(255,233,168,.22)"/><circle cx="0" cy="-104" r="14" fill="rgba(255,233,168,.3)"/>
+          <rect x="-2.5" y="-100" width="5" height="102" fill="#2b3040"/>
+          <path d="M-10 -100 Q0 -112 10 -100 Z" fill="#2b3040"/><circle cx="0" cy="-102" r="5" fill="#fff1c0"/>
+          <path d="M0 -70 Q-14 -66 -14 -52 M0 -70 Q14 -66 14 -52" stroke="#2c9f69" stroke-width="3" fill="none"/>
+          <circle cx="0" cy="-70" r="3" fill="#e2403f"/>
+        </g>`;
+      } else if (k === 'snowman') {
+        s += `<g transform="translate(${x} ${base - 14})">
+          <circle cx="0" cy="12" r="22" fill="#fff"/><circle cx="0" cy="-16" r="16" fill="#fff"/><circle cx="0" cy="-38" r="11" fill="#fff"/>
+          <circle cx="-4" cy="-40" r="1.5" fill="#222"/><circle cx="4" cy="-40" r="1.5" fill="#222"/>
+          <path d="M0 -37 L10 -35 L0 -34 Z" fill="#ff8a2b"/>
+          <rect x="-10" y="-54" width="20" height="4" fill="#222"/><rect x="-6" y="-66" width="12" height="13" fill="#222"/>
+          <path d="M-10 -28 H10" stroke="#e2403f" stroke-width="4"/>
+          <path d="M-16 -16 L-30 -26 M16 -16 L30 -26" stroke="#6d4524" stroke-width="2.5"/>
+        </g>`;
+      } else {
+        s += `<g transform="translate(${x} ${base})">
+          <rect x="-24" y="-26" width="28" height="26" fill="#e2403f"/><rect x="-12" y="-26" width="5" height="26" fill="#ffd34d"/><rect x="-24" y="-15" width="28" height="5" fill="#ffd34d"/>
+          <rect x="8" y="-18" width="22" height="18" fill="#3b82f6"/><rect x="17" y="-18" width="5" height="18" fill="#fff"/>
+          <rect x="-8" y="-42" width="20" height="16" fill="#2fa56a"/><rect x="0" y="-42" width="4" height="16" fill="#ffd34d"/>
+        </g>`;
+      }
+    }
+    // 눈 덮인 길
+    s += `<path d="M0 268 Q150 258 300 266 T600 266 T900 264 T1200 268 V${H} H0 Z" fill="#f5f9ff"/>`;
+    s += `<rect x="0" y="286" width="${W}" height="14" fill="#dfe8f7"/>`;
+    for (let dx = 20; dx < W; dx += 80) s += `<rect x="${dx}" y="292" width="40" height="3" rx="1.5" fill="#fff"/>`;
+    return s;
+  }
+
+  const defs = `<defs><linearGradient id="sh" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".7"/><stop offset="1" stop-color="#000" stop-opacity=".6"/></linearGradient></defs>`;
+  const layers = [
+    { d:80, body: buildings(11, { w:[50,110], h:[140,235], colors:['#5b6a98','#667599','#52618e','#6a6f9f'], win:[5,7], gap:[6,8], lit:.14, dim:'#46538a', detail:true }), op:.9 },
+    { d:42, body: buildings(23, { w:[64,125], h:[110,195], colors:['#7a4a45','#4d6a8f','#6a5a7e','#8a6a4a','#3f5f6e'], win:[10,13], gap:[8,9], lit:.55, dim:'#2c3a55', detail:true }), op:1 },
+    { d:21, body: buildings(37, { w:[74,135], h:[78,118], colors:['#a05a4a','#d6b78a','#5f7fae','#b9615a','#7a9a8a'], win:[11,13], gap:[9,10], lit:.7, dim:'#33425e', pad:54, shop:true, lights:true, detail:false }), op:1 },
+    { d:10, body: foreground(5), op:1 }
+  ];
+  $('ground').innerHTML = layers.map(l => {
+    const svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="opacity:${l.op}">${defs}${l.body}</svg>`;
+    return `<div class="layer" style="--d:${l.d}s">${svg}${svg}${svg}</div>`;
+  }).join('');
+
+  /* ----- 별 ----- */
+  const sc=$('stars'), sx=sc.getContext('2d');
+  let stars=[];
+  function sizeStars(){
+    sc.width=innerWidth; sc.height=innerHeight;
+    stars = Array.from({length:110},()=>({x:Math.random()*sc.width, y:Math.random()*sc.height*0.65, r:Math.random()*1.4+.4, p:Math.random()*6}));
+  }
+  function drawStars(t){
+    sx.clearRect(0,0,sc.width,sc.height);
+    for(const s of stars){
+      sx.globalAlpha = .45 + .55*Math.abs(Math.sin(t/900 + s.p));
+      sx.fillStyle='#fff'; sx.beginPath(); sx.arc(s.x,s.y,s.r,0,6.283); sx.fill();
+    }
+    requestAnimationFrame(drawStars);
+  }
+  sizeStars(); requestAnimationFrame(drawStars);
+
+  /* ----- 눈 ----- */
+  const nc=$('snow'), nx=nc.getContext('2d');
+  let flakes=[];
+  function sizeSnow(){
+    nc.width=innerWidth; nc.height=innerHeight;
+    flakes = Array.from({length:Math.round(innerWidth/9)},()=>({x:Math.random()*nc.width, y:Math.random()*nc.height, r:Math.random()*2.6+.8, v:Math.random()*0.9+.4, d:Math.random()*6}));
+  }
+  function drawSnow(t){
+    nx.clearRect(0,0,nc.width,nc.height);
+    nx.fillStyle='rgba(255,255,255,.9)';
+    for(const f of flakes){
+      f.y += f.v; f.x += Math.sin(t/1200+f.d)*.4;
+      if(f.y>nc.height+5){ f.y=-5; f.x=Math.random()*nc.width; }
+      nx.beginPath(); nx.arc(f.x,f.y,f.r,0,6.283); nx.fill();
+    }
+    requestAnimationFrame(drawSnow);
+  }
+  sizeSnow(); requestAnimationFrame(drawSnow);
+  addEventListener('resize',()=>{ sizeStars(); sizeSnow(); });
+
+  setStage(0); updateMeter();
+</script>
+</body>
+</html>
